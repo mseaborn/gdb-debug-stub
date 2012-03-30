@@ -145,11 +145,58 @@ struct state {
   int first_break;
 } g_state;
 
-struct regs32 {
+struct gdb_regs {
+#if defined(__i386__)
   uint32_t eax, ecx, edx, ebx, esp, ebp, esi, edi;
   uint32_t eip, eflags;
   uint32_t cs, ss, ds, es, fs, gs;
+#elif defined(__x86_64__)
+  uint64_t rax, rbx, rcx, rdx, rsi, rdi, rbp, rsp;
+  uint64_t r8, r9, r10, r11, r12, r13, r14, r15;
+  uint64_t rip;
+  uint32_t eflags;
+  uint32_t cs, ss, ds, es, fs, gs;
+#else
+# error Unknown architecture
+#endif
 };
+
+void copy_regs_to_gdb(struct gdb_regs *regs, const mcontext_t *mcontext) {
+  memset(regs, 0, sizeof(*regs));
+#if defined(__i386__)
+  regs->eax = mcontext->gregs[REG_EAX];
+  regs->ebx = mcontext->gregs[REG_EBX];
+  regs->ecx = mcontext->gregs[REG_ECX];
+  regs->edx = mcontext->gregs[REG_EDX];
+  regs->esi = mcontext->gregs[REG_ESI];
+  regs->edi = mcontext->gregs[REG_EDI];
+  regs->esp = mcontext->gregs[REG_ESP];
+  regs->ebp = mcontext->gregs[REG_EBP];
+  regs->eflags = mcontext->gregs[REG_EFL];
+  regs->eip = mcontext->gregs[REG_EIP];
+#elif defined(__x86_64__)
+  regs->rax = mcontext->gregs[REG_RAX];
+  regs->rbx = mcontext->gregs[REG_RBX];
+  regs->rcx = mcontext->gregs[REG_RCX];
+  regs->rdx = mcontext->gregs[REG_RDX];
+  regs->rsi = mcontext->gregs[REG_RSI];
+  regs->rdi = mcontext->gregs[REG_RDI];
+  regs->rbp = mcontext->gregs[REG_RBP];
+  regs->rsp = mcontext->gregs[REG_RSP];
+  regs->r8 = mcontext->gregs[REG_R8];
+  regs->r9 = mcontext->gregs[REG_R9];
+  regs->r10 = mcontext->gregs[REG_R10];
+  regs->r11 = mcontext->gregs[REG_R11];
+  regs->r12 = mcontext->gregs[REG_R12];
+  regs->r13 = mcontext->gregs[REG_R13];
+  regs->r14 = mcontext->gregs[REG_R14];
+  regs->r15 = mcontext->gregs[REG_R15];
+  regs->eflags = mcontext->gregs[REG_EFL];
+  regs->rip = mcontext->gregs[REG_RIP];
+#else
+# error Unknown architecture
+#endif
+}
 
 void signal_handler(int signum, siginfo_t *info, void *context) {
   ucontext_t *ucontext = context;
@@ -181,18 +228,8 @@ void signal_handler(int signum, siginfo_t *info, void *context) {
     case 'g': /* read registers */
       {
         char reply[1000];
-        struct regs32 regs;
-        memset(&regs, 0, sizeof(regs));
-        regs.eax = mcontext->gregs[REG_EAX];
-        regs.ebx = mcontext->gregs[REG_EBX];
-        regs.ecx = mcontext->gregs[REG_ECX];
-        regs.edx = mcontext->gregs[REG_EDX];
-        regs.esi = mcontext->gregs[REG_ESI];
-        regs.edi = mcontext->gregs[REG_EDI];
-        regs.esp = mcontext->gregs[REG_ESP];
-        regs.ebp = mcontext->gregs[REG_EBP];
-        regs.eflags = mcontext->gregs[REG_EFL];
-        regs.eip = mcontext->gregs[REG_EIP];
+        struct gdb_regs regs;
+        copy_regs_to_gdb(&regs, mcontext);
         write_hex_bytes(reply, (uint8_t *) &regs, sizeof(regs));
         reply[sizeof(regs) * 2] = 0;
         put_packet(g_state.fp, reply);

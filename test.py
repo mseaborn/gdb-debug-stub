@@ -35,10 +35,10 @@ def AssertEq(x, y):
     raise AssertionError('%r != %r' % (x, y))
 
 
-def Main():
-  proc2 = subprocess.Popen(['./stub'],
+def TestStub(prog):
+  proc2 = subprocess.Popen([prog],
                            stderr=open(os.devnull, 'w'))
-  proc1 = subprocess.Popen(['gdb', '--interpreter', 'mi', 'stub'],
+  proc1 = subprocess.Popen(['gdb', '--interpreter', 'mi', prog],
                            stdin=subprocess.PIPE,
                            stdout=subprocess.PIPE)
   gdb_output = ReadLines(proc1.stdout)
@@ -75,6 +75,12 @@ def Main():
   finally:
     proc1.wait()
     proc2.wait()
+
+
+def Main():
+  for prog in ['./stub_32', './stub_64']:
+    print 'testing %s...' % prog
+    TestStub(prog)
   print 'pass'
 
 
